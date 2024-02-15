@@ -1,3 +1,4 @@
+#EXEC
 import subprocess
 
 def save_netstat_output_to_file(file_path):
