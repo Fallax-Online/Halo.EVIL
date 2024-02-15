@@ -1,0 +1,20 @@
+import subprocess
+
+def save_netstat_output_to_file(file_path):
+    try:
+        # Run netstat command
+        netstat_output = subprocess.check_output(['netstat', '-n', '-a'])
+
+        # Decode bytes to string
+        netstat_output = netstat_output.decode('utf-8')
+
+        # Write output to file
+        with open(file_path, 'w') as file:
+            file.write(netstat_output)
+        
+        print("Netstat output has been saved to", file_path)
+    except subprocess.CalledProcessError as e:
+        print("Error occurred while running netstat command:", e)
+
+if __name__ == "__main__":
+    save_netstat_output_to_file("data.log")
